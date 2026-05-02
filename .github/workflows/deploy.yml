@@ -62,7 +62,7 @@ jobs:
 
           # 3. Валидация: если переменные из vars.* не подтянулись, скрипт прервется
           if [[ -z "${{ env.ITCH_USER }}" || -z "${{ env.ITCH_GAME }}" ]]; then
-            echo "Error: ITCH_USER or ITCH_GAME is not defined in GitHub Variables."
+            echo "Ошибка: ITCH_USERNAME или ITCH_GAME_ID нет в GitHub Variables."
             exit 1
           fi
 
