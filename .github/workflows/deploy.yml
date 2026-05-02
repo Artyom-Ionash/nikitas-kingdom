@@ -6,12 +6,13 @@ on:
       - main
 
 env:
-  GODOT_VERSION: "4.6"
+  GODOT_VERSION: "4.6.2"
   EXPORT_NAME: "Web"
   EXPORT_DIR: "build/web"
   ITCH_USER: ${{ vars.ITCH_USERNAME }}
   ITCH_GAME: ${{ vars.ITCH_GAME_ID }}
   ITCH_CHANNEL: "web"
+  BUTLER_VERSION: "latest" # Для инвалидации кэша butler, если потребуется
 
 jobs:
   export-web:
@@ -22,49 +23,88 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 1. Настройка кэша для Godot Engine и Export Templates
+      - name: Cache Godot Engine and Templates
+        id: cache-godot
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/godot-bin/
+            ~/.local/share/godot/export_templates/
+          # Ключ кэша зависит от версии Godot. Если меняешь версию - кэш обновится.
+          key: ${{ runner.os }}-godot-${{ env.GODOT_VERSION }}
+
+      # 2. Настройка кэша для Butler
+      - name: Cache Butler
+        id: cache-butler
+        uses: actions/cache@v4
+        with:
+          path: ~/butler-bin/
+          key: ${{ runner.os }}-butler-${{ env.BUTLER_VERSION }}
+
+      # 3. Подготовка директорий (если они не восстановились из кэша)
       - name: Prepare Environment
         run: |
           mkdir -vp ${{ env.EXPORT_DIR }}
           mkdir -vp ~/.local/share/godot/export_templates/${{ env.GODOT_VERSION }}.stable/
           mkdir -vp ~/godot-bin/
+          mkdir -vp ~/butler-bin/
 
+      # 4. Установка Godot (Только если кэш НЕ найден)
       - name: Install Godot Engine
+        if: steps.cache-godot.outputs.cache-hit != 'true'
         run: |
+          echo "Cache miss: Downloading Godot Engine v${{ env.GODOT_VERSION }}..."
           curl -L "https://github.com/godotengine/godot/releases/download/${{ env.GODOT_VERSION }}-stable/Godot_v${{ env.GODOT_VERSION }}-stable_linux.x86_64.zip" -o godot.zip
           unzip -q godot.zip -d ~/godot-bin/
           ln -s ~/godot-bin/Godot_v${{ env.GODOT_VERSION }}-stable_linux.x86_64 ~/godot-bin/godot
           chmod +x ~/godot-bin/godot
           rm godot.zip
 
+      # 5. Установка шаблонов (Только если кэш НЕ найден)
       - name: Install Export Templates (Web Only)
+        if: steps.cache-godot.outputs.cache-hit != 'true'
         run: |
+          echo "Cache miss: Downloading Export Templates..."
           curl -L "https://github.com/godotengine/godot/releases/download/${{ env.GODOT_VERSION }}-stable/Godot_v${{ env.GODOT_VERSION }}-stable_export_templates.tpz" -o templates.tpz
           unzip -q templates.tpz "templates/web_*" "templates/version.txt" "templates/icudt_godot.dat"
           mv templates/* ~/.local/share/godot/export_templates/${{ env.GODOT_VERSION }}.stable/
           rm -rf templates.tpz templates
 
+      # 6. Экспорт игры (используем бинарник, который либо скачался, либо достался из кэша)
       - name: Godot Export
         run: |
+          # Убеждаемся, что симлинк существует (кэш иногда его теряет)
+          if [ ! -f ~/godot-bin/godot ]; then
+            ln -s ~/godot-bin/Godot_v${{ env.GODOT_VERSION }}-stable_linux.x86_64 ~/godot-bin/godot
+            chmod +x ~/godot-bin/godot
+          fi
           ~/godot-bin/godot --headless --export-release "${{ env.EXPORT_NAME }}" ${{ env.EXPORT_DIR }}/index.html
 
-      - name: Install & Run Butler
+      # 7. Установка Butler (Только если кэш НЕ найден)
+      - name: Install Butler
+        if: steps.cache-butler.outputs.cache-hit != 'true'
+        run: |
+          echo "Cache miss: Downloading Butler..."
+          curl -L -o butler.zip https://github.com/itchio/butler/releases/latest/download/butler-linux-amd64.zip
+          unzip -q butler.zip -d bin-dist
+          mv bin-dist/linux-amd64/butler ~/butler-bin/butler
+          chmod +x ~/butler-bin/butler
+          rm -rf butler.zip bin-dist
+
+      # 8. Запуск Butler и деплой
+      - name: Run Butler Push
         shell: bash
         env:
           BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
         run: |
-          # 1. Загрузка и подготовка бинарника
-          curl -L -o butler.zip https://github.com/itchio/butler/releases/latest/download/butler-linux-amd64.zip
-          unzip -q butler.zip -d bin-dist
-          mv bin-dist/linux-amd64/butler ./butler && chmod +x ./butler
-
-          # 2. Формирование цели из глобального env (без дублирования)
           TARGET="${{ env.ITCH_USER }}/${{ env.ITCH_GAME }}:${{ env.ITCH_CHANNEL }}"
 
-          # 3. Валидация: если переменные из vars.* не подтянулись, скрипт прервется
           if [[ -z "${{ env.ITCH_USER }}" || -z "${{ env.ITCH_GAME }}" ]]; then
             echo "Ошибка: ITCH_USERNAME или ITCH_GAME_ID нет в GitHub Variables."
             exit 1
           fi
 
           echo "Pushing build to: $TARGET"
-          ./butler push "${{ env.EXPORT_DIR }}" "$TARGET"
+          # Используем butler из нашей папки
+          ~/butler-bin/butler push "${{ env.EXPORT_DIR }}" "$TARGET"
