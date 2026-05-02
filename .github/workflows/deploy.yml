@@ -43,15 +43,18 @@ jobs:
           path: ~/.local/share/godot/export_templates/
           key: godot-templates-${{ env.GODOT_VERSION }}
 
-      - name: Install Export Templates
-        # Выполняем только если кэш не найден
-        if: steps.cache-templates.outputs.cache-hit != 'true'
+      - name: Install Export Templates (Surgical)
         run: |
-          apt-get install -y curl unzip # Убрали update для скорости
           curl -L https://github.com/godotengine/godot/releases/download/${{ env.GODOT_VERSION }}-stable/Godot_v${{ env.GODOT_VERSION }}-stable_export_templates.tpz -o templates.tpz
-          unzip templates.tpz
+
+          # Экстрагируем только то, что нужно для Web (включая версию и данные)
+          # Это сэкономит время на операциях ввода-вывода
+          unzip templates.tpz "templates/web_*" "templates/version.txt" "templates/icudt_godot.dat"
+
           mkdir -p ~/.local/share/godot/export_templates/${{ env.GODOT_VERSION }}.stable
           mv templates/* ~/.local/share/godot/export_templates/${{ env.GODOT_VERSION }}.stable/
+
+          # Мгновенная очистка
           rm -rf templates.tpz templates
 
       - name: Godot Export
