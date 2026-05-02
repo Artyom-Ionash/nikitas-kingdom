@@ -6,11 +6,9 @@ on:
       - main
 
 env:
-  # Используем переменные, чтобы легко обновлять версию в одном месте
-  GODOT_VERSION: "4.6"
+  GODOT_VERSION: "4.6" # Версия должна совпадать с релизом на GitHub
   EXPORT_NAME: "Web"
   EXPORT_DIR: "build/web"
-  # Подставляем твои данные напрямую или через секреты
   ITCH_USER: "artyom-ionash"
   ITCH_GAME: "nikitas-kingdom"
   ITCH_CHANNEL: "web"
@@ -18,10 +16,7 @@ env:
 jobs:
   export-web:
     name: Web Export & Push
-    runs-on: ubuntu-latest
-    # Используем контейнер с уже предустановленным Godot для экономии времени
-    container:
-      image: barichello/godot-ci:4.6
+    runs-on: ubuntu-latest # Выполняем напрямую на хосте, без Docker!
 
     steps:
       - name: Checkout
@@ -29,49 +24,43 @@ jobs:
 
       - name: Prepare Environment
         run: |
-          # Дооснастка инструментами (Provisioning)
-          apt-get update && apt-get install -y curl unzip
-          # Создаем структуру (Root Binding)
           mkdir -vp ${{ env.EXPORT_DIR }}
-          mkdir -p ~/.local/share/godot/export_templates/${{ env.GODOT_VERSION }}.stable
+          mkdir -vp ~/.local/share/godot/export_templates/${{ env.GODOT_VERSION }}.stable/
+          mkdir -vp ~/godot-bin/
 
-      # Добавь этот шаг ПЕРЕД установкой шаблонов
-      - name: Cache Godot Templates
-        id: cache-templates
-        uses: actions/cache@v4
-        with:
-          path: ~/.local/share/godot/export_templates/
-          key: godot-templates-${{ env.GODOT_VERSION }}
+      - name: Install Godot Engine
+        run: |
+          # Скачиваем бинарник движка (всего ~60 МБ)
+          curl -L "https://github.com/godotengine/godot/releases/download/${{ env.GODOT_VERSION }}-stable/Godot_v${{ env.GODOT_VERSION }}-stable_linux.x86_64.zip" -o godot.zip
+          unzip godot.zip -d ~/godot-bin/
+          # Создаем удобный алиас (симлинк)
+          ln -s ~/godot-bin/Godot_v${{ env.GODOT_VERSION }}-stable_linux.x86_64 ~/godot-bin/godot
+          chmod +x ~/godot-bin/godot
+          rm godot.zip
 
       - name: Install Export Templates (Surgical)
         run: |
-          curl -L https://github.com/godotengine/godot/releases/download/${{ env.GODOT_VERSION }}-stable/Godot_v${{ env.GODOT_VERSION }}-stable_export_templates.tpz -o templates.tpz
+          # Скачиваем шаблоны
+          curl -L "https://github.com/godotengine/godot/releases/download/${{ env.GODOT_VERSION }}-stable/Godot_v${{ env.GODOT_VERSION }}-stable_export_templates.tpz" -o templates.tpz
 
-          # Экстрагируем только то, что нужно для Web (включая версию и данные)
-          # Это сэкономит время на операциях ввода-вывода
+          # Извлекаем ТОЛЬКО веб-шаблоны и служебные файлы (экономия времени I/O)
           unzip templates.tpz "templates/web_*" "templates/version.txt" "templates/icudt_godot.dat"
 
-          mkdir -p ~/.local/share/godot/export_templates/${{ env.GODOT_VERSION }}.stable
+          # Перемещаем на место
           mv templates/* ~/.local/share/godot/export_templates/${{ env.GODOT_VERSION }}.stable/
-
-          # Мгновенная очистка
           rm -rf templates.tpz templates
 
       - name: Godot Export
         run: |
-          # Экспортируем именно в index.html, как того требует хостинг
-          godot --headless --export-release "${{ env.EXPORT_NAME }}" ${{ env.EXPORT_DIR }}/index.html
+          # Вызываем движок по абсолютному пути
+          ~/godot-bin/godot --headless --export-release "${{ env.EXPORT_NAME }}" ${{ env.EXPORT_DIR }}/index.html
 
       - name: Install & Run Butler
         env:
           BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
         run: |
-          # Качаем Butler с зеркала GitHub для стабильности DNS
           curl -L -o butler.zip https://github.com/itchio/butler/releases/latest/download/butler-linux-amd64.zip
           unzip butler.zip -d bin-dist
-          # Вытягиваем бинарник из вложенной папки архива
           mv bin-dist/linux-amd64/butler ./butler && chmod +x ./butler
 
-          # Финальный пуш: чистая конкатенация без скрытых пробелов
-          # Формат: ./butler push [ПАПКА] [ПОЛЬЗОВАТЕЛЬ]/[ИГРА]:[КАНАЛ]
           ./butler push ${{ env.EXPORT_DIR }} ${{ env.ITCH_USER }}/${{ env.ITCH_GAME }}:${{ env.ITCH_CHANNEL }}
