@@ -5,7 +5,6 @@ on:
     branches: [master, main]
 
 env:
-  GODOT_VERSION: "4.6.2"
   ITCH_USER: ${{ vars.ITCH_USERNAME }}
   ITCH_GAME: ${{ vars.ITCH_GAME_ID }}
   ITCH_CHANNEL: web
@@ -14,8 +13,13 @@ env:
 jobs:
   export-and-deploy:
     runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        godot_version: ["4.6.2"]
+
     container:
-      image: barichello/godot-ci:${{ env.GODOT_VERSION }}
+      image: barichello/godot-ci:${{ matrix.godot_version }}
 
     steps:
       - name: Checkout
@@ -27,14 +31,14 @@ jobs:
           apt-get update && apt-get install -y curl unzip
 
           # 1. Создаём структуру директорий (Root Binding)
-          mkdir -p ~/.local/share/godot/export_templates/${{ env.GODOT_VERSION }}.stable
+          mkdir -p ~/.local/share/godot/export_templates/${{ matrix.godot_version }}.stable
 
           # 2. Загружаем официальные шаблоны
-          curl -L https://github.com/godotengine/godot/releases/download/${{ env.GODOT_VERSION }}-stable/Godot_v${{ env.GODOT_VERSION }}-stable_export_templates.tpz -o templates.tpz
+          curl -L https://github.com/godotengine/godot/releases/download/${{ matrix.godot_version }}-stable/Godot_v${{ matrix.godot_version }}-stable_export_templates.tpz -o templates.tpz
 
           # 3. Распаковываем и перемещаем в целевую область
           unzip templates.tpz
-          mv templates/* ~/.local/share/godot/export_templates/${{ env.GODOT_VERSION }}.stable/
+          mv templates/* ~/.local/share/godot/export_templates/${{ matrix.godot_version }}.stable/
 
           # 4. Очистка временной руды
           rm -rf templates.tpz templates
