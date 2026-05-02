@@ -2,39 +2,40 @@ name: "Godot Web Deployment"
 
 on:
   push:
-    branches:
-      - main # Запуск при пуше в основную ветку
+    branches: [master, main]
+
+# Глобальные переменные для всего процесса
+env:
+  ITCH_USER: ${{ vars.ITCH_USERNAME }}
+  ITCH_GAME: ${{ vars.ITCH_GAME_ID }}
+  ITCH_CHANNEL: web
+  EXPORT_DIR: build/web
 
 jobs:
-  export-web:
-    name: Web Export & Push
+  export-and-deploy:
     runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.6.2
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 1. Явно создаем дерево папок
-      - name: Create Build Directory
-        run: mkdir -v -p build/web
+      - name: Build Project
+        run: |
+          mkdir -vp ${{ env.EXPORT_DIR }}
+          # Используем headless-режим для чистоты процесса
+          godot --headless --export-release "Web" ${{ env.EXPORT_DIR }}/index.html
 
-      # 2. Экспорт (параметр relative_export_path должен указывать на ФАЙЛ)
-      - name: Godot Export
-        uses: firebelley/godot-export@v7.0.0
-        with:
-          godot_executable_download_url: "https://github.com/godotengine/godot/releases/download/4.6-stable/Godot_v4.6-stable_linux.x86_64.zip"
-          godot_export_templates_download_url: "https://github.com/godotengine/godot/releases/download/4.6-stable/Godot_v4.6-stable_export_templates.tpz"
-          relative_project_path: "./"
-          # Экшен положит index.html и .pck именно в build/web/
-          relative_export_path: "build/web/index.html"
-          export_preset_name: "Web"
-
-      # 3. Butler (параметр PACKAGE указывает на ПАПКУ)
-      - name: Butler Push
-        uses: josephbmanley/butler-publish-itchio-action@master
+      - name: Deploy via Butler
         env:
-          BUTLER_CREDENTIALS: ${{ secrets.BUTLER_API_KEY }}
-          CHANNEL: web
-          ITCH_GAME: nikitas-kingdom
-          ITCH_USER: artyom-ionash
-          PACKAGE: build/web
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+        run: |
+          # Установка инструмента (Extraction)
+          curl -L -o butler.zip https://broth.itch.ovh/butler/linux-amd64/LATEST/archive/default
+          unzip butler.zip -d bin && chmod +x bin/butler
+
+          # Пуш с использованием абстрактных переменных (Refining)
+          ./bin/butler push \
+            ./${{ env.EXPORT_DIR }} \
+            ${{ env.ITCH_USER }}/${{ env.ITCH_GAME }}:${{ env.ITCH_CHANNEL }}
