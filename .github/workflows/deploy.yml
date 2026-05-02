@@ -15,8 +15,7 @@ jobs:
   export-and-deploy:
     runs-on: ubuntu-latest
     container:
-      # Важно: используйте образ, соответствующий версии твоего проекта
-      image: barichello/godot-ci:4.6.2
+      image: barichello/godot-ci:${{ env.GODOT_VERSION }}
 
     steps:
       - name: Checkout
@@ -50,9 +49,19 @@ jobs:
         env:
           BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
         run: |
-          curl -L -o butler.zip https://broth.itch.ovh/butler/linux-amd64/LATEST/archive/default
+          # 1. Загрузка Butler с механизмом повторных попыток (Retry Logic)
+          # -4 форсирует IPv4, --retry задаёт количество попыток
+          curl -L -4 --retry 5 --retry-delay 5 \
+            -o butler.zip \
+            https://broth.itch.ovh/butler/linux-amd64/LATEST/archive/default
+
+          # 2. Распаковка и подготовка
           unzip butler.zip -d bin && chmod +x bin/butler
 
+          # 3. Проверка версии (Smoke Test) для верификации бинарника
+          ./bin/butler -V
+
+          # 4. Пуш артефакта
           ./bin/butler push \
             ./${{ env.EXPORT_DIR }} \
             ${{ env.ITCH_USER }}/${{ env.ITCH_GAME }}:${{ env.ITCH_CHANNEL }}
