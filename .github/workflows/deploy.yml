@@ -35,11 +35,22 @@ jobs:
           mkdir -vp ${{ env.EXPORT_DIR }}
           mkdir -p ~/.local/share/godot/export_templates/${{ env.GODOT_VERSION }}.stable
 
+      # Добавь этот шаг ПЕРЕД установкой шаблонов
+      - name: Cache Godot Templates
+        id: cache-templates
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/godot/export_templates/
+          key: godot-templates-${{ env.GODOT_VERSION }}
+
       - name: Install Export Templates
+        # Выполняем только если кэш не найден
+        if: steps.cache-templates.outputs.cache-hit != 'true'
         run: |
+          apt-get install -y curl unzip # Убрали update для скорости
           curl -L https://github.com/godotengine/godot/releases/download/${{ env.GODOT_VERSION }}-stable/Godot_v${{ env.GODOT_VERSION }}-stable_export_templates.tpz -o templates.tpz
           unzip templates.tpz
-          # Переносим шаблоны туда, где их ждет движок
+          mkdir -p ~/.local/share/godot/export_templates/${{ env.GODOT_VERSION }}.stable
           mv templates/* ~/.local/share/godot/export_templates/${{ env.GODOT_VERSION }}.stable/
           rm -rf templates.tpz templates
 
