@@ -59,8 +59,13 @@ jobs:
         env:
           BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
         run: |
+          # 1. Загрузка
           curl -L -o butler.zip https://github.com/itchio/butler/releases/latest/download/butler-linux-amd64.zip
           unzip butler.zip -d bin-dist
-          mv bin-dist/linux-amd64/butler ./butler && chmod +x ./butler
 
-          ./butler push ${{ env.EXPORT_DIR }} ${{ env.ITCH_USER }}/${{ env.ITCH_GAME }}:${{ env.ITCH_CHANNEL }}
+          # 2. Переименовываем ВСЮ директорию, сохраняя зависимости (.so файлы) рядом с бинарником
+          mv bin-dist/linux-amd64 ./butler-tool
+          chmod +x ./butler-tool/butler
+
+          # 3. Финальный пуш
+          ./butler-tool/butler push ${{ env.EXPORT_DIR }} ${{ env.ITCH_USER }}/${{ env.ITCH_GAME }}:${{ env.ITCH_CHANNEL }}
