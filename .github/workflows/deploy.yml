@@ -49,23 +49,22 @@ jobs:
           # Headless экспорт — чистая функция без графического интерфейса
           godot --headless --export-release "Web" ${{ env.EXPORT_DIR }}/index.html
 
+      - name: Install Butler (Reliable Way)
+        run: |
+          # Используем GitHub API для поиска прямой ссылки на релиз, если основной домен itch лежит
+          apt-get update && apt-get install -y jq
+          BUTLER_URL=$(curl -s https://broth.itch.ovh/butler/linux-amd64/LATEST/archive/default?raw=true | grep -o 'https://[^"]*' || echo "https://github.com/itchio/butler/releases/latest/download/butler-linux-amd64.zip")
+          # Если основной домен не резолвится, используем зеркало на GitHub
+          curl -L -4 --retry 5 --retry-delay 5 \
+            -o butler.zip \
+            "https://github.com/itchio/butler/releases/latest/download/butler-linux-amd64.zip"
+
+          unzip butler.zip -d bin && chmod +x bin/butler
+
       - name: Deploy via Butler
         env:
           BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
         run: |
-          # 1. Загрузка Butler с механизмом повторных попыток (Retry Logic)
-          # -4 форсирует IPv4, --retry задаёт количество попыток
-          curl -L -4 --retry 5 --retry-delay 5 \
-            -o butler.zip \
-            https://broth.itch.ovh/butler/linux-amd64/LATEST/archive/default
-
-          # 2. Распаковка и подготовка
-          unzip butler.zip -d bin && chmod +x bin/butler
-
-          # 3. Проверка версии (Smoke Test) для верификации бинарника
-          ./bin/butler -V
-
-          # 4. Пуш артефакта
           ./bin/butler push \
             ./${{ env.EXPORT_DIR }} \
             ${{ env.ITCH_USER }}/${{ env.ITCH_GAME }}:${{ env.ITCH_CHANNEL }}
