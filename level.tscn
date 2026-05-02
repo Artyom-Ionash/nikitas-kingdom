@@ -636,7 +636,7 @@ occluder = SubResource("OccluderPolygon2D_km5ld")
 [node name="Mobs" type="Node2D" parent="." unique_id=668383444]
 
 [node name="skeleton" parent="Mobs" unique_id=1469946019 instance=ExtResource("9_i2t4f")]
-position = Vector2(334, 386)
+position = Vector2(642, 380)
 
 [node name="Player" type="Node2D" parent="." unique_id=553540261]
 

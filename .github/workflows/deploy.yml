@@ -9,8 +9,8 @@ env:
   GODOT_VERSION: "4.6" # Версия должна совпадать с релизом на GitHub
   EXPORT_NAME: "Web"
   EXPORT_DIR: "build/web"
-  ITCH_USER: "artyom-ionash"
-  ITCH_GAME: "nikitas-kingdom"
+  ITCH_USER: ${{ vars.ITCH_USERNAME }}
+  ITCH_GAME: ${{ vars.ITCH_GAME_ID }}
   ITCH_CHANNEL: "web"
 
 jobs:
