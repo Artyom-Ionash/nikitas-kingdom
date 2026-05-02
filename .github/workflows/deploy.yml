@@ -4,8 +4,8 @@ on:
   push:
     branches: [master, main]
 
-# Глобальные переменные для всего процесса
 env:
+  GODOT_VERSION: "4.6.2"
   ITCH_USER: ${{ vars.ITCH_USERNAME }}
   ITCH_GAME: ${{ vars.ITCH_GAME_ID }}
   ITCH_CHANNEL: web
@@ -15,27 +15,42 @@ jobs:
   export-and-deploy:
     runs-on: ubuntu-latest
     container:
+      # Важно: используйте образ, соответствующий версии твоего проекта
       image: barichello/godot-ci:4.6.2
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Export Templates
+        run: |
+          # 1. Создаём структуру директорий (Root Binding для шаблонов)
+          # В GitHub Actions домашняя папка — /github/home/
+          mkdir -p ~/.local/share/godot/export_templates/${{ env.GODOT_VERSION }}.stable
+
+          # 2. Загружаем официальные шаблоны
+          curl -L https://github.com/godotengine/godot/releases/download/${{ env.GODOT_VERSION }}-stable/Godot_v${{ env.GODOT_VERSION }}-stable_export_templates.tpz -o templates.tpz
+
+          # 3. Распаковываем и перемещаем в целевую область
+          unzip templates.tpz
+          mv templates/* ~/.local/share/godot/export_templates/${{ env.GODOT_VERSION }}.stable/
+
+          # 4. Очистка временной руды
+          rm -rf templates.tpz templates
+
       - name: Build Project
         run: |
           mkdir -vp ${{ env.EXPORT_DIR }}
-          # Используем headless-режим для чистоты процесса
+          # Headless экспорт — чистая функция без графического интерфейса
           godot --headless --export-release "Web" ${{ env.EXPORT_DIR }}/index.html
 
       - name: Deploy via Butler
         env:
           BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
         run: |
-          # Установка инструмента (Extraction)
           curl -L -o butler.zip https://broth.itch.ovh/butler/linux-amd64/LATEST/archive/default
           unzip butler.zip -d bin && chmod +x bin/butler
 
-          # Пуш с использованием абстрактных переменных (Refining)
           ./bin/butler push \
             ./${{ env.EXPORT_DIR }} \
             ${{ env.ITCH_USER }}/${{ env.ITCH_GAME }}:${{ env.ITCH_CHANNEL }}
