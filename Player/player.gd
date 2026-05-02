@@ -16,8 +16,8 @@ const JUMP_VELOCITY = -400.0
 var gravity = ProjectSettings.get_setting("physics/2d/default_gravity")
 var gold = 0:
 	set(value):
-    	gold = value
-    	update_gold_ui() 
+		gold = value
+		update_gold_ui()
 var state = MOVE
 var run_speed = 1
 var combo = false
@@ -36,13 +36,13 @@ var health = 100:
 # --- ССЫЛКИ НА УЗЛЫ ---
 @onready var anim = $AnimatedSprite2D
 @onready var animPlayer = $AnimationPlayer
-@onready var sword_area_col = $SwordArea/CollisionShape2D 
+@onready var sword_area_col = $SwordArea/CollisionShape2D
 
 func _ready():
 	animPlayer.animation_finished.connect(_on_animation_finished)
 	update_health_bar()
 	update_gold_ui()
-	
+
 	if sword_area_col:
 		sword_area_col.disabled = true
 
@@ -58,7 +58,7 @@ func _physics_process(delta: float) -> void:
 	# 3. Логика падения
 	if velocity.y > 0 and state == MOVE:
 		animPlayer.play("Fall")
-		
+
 	# 4. Смерть
 	if health <= 0:
 		die()
@@ -78,14 +78,14 @@ func _physics_process(delta: float) -> void:
 			block_state()
 		SLIDE:
 			slide_state()
-	
+
 	move_and_slide()
 
 # --- СОСТОЯНИЯ ---
 
 func move_state():
 	var direction := Input.get_axis("left", "right")
-	
+
 	if direction:
 		velocity.x = direction * SPEED * run_speed
 		if velocity.y == 0:
@@ -94,15 +94,15 @@ func move_state():
 		velocity.x = move_toward(velocity.x, 0, SPEED)
 		if velocity.y == 0:
 			animPlayer.play("Idle")
-			
+
 	# Поворот
 	if direction != 0:
 		anim.flip_h = (direction == -1)
 		$SwordArea.scale.x = direction
-		
+
 	# Бег
 	run_speed = 2 if Input.is_action_pressed("run") else 1
-		
+
 	# Блок и Слайд
 	if Input.is_action_pressed("block"):
 		if velocity.x == 0:
@@ -110,7 +110,7 @@ func move_state():
 		else:
 			state = SLIDE
 			animPlayer.play("Slide")
-			
+
 	# Атака (Расход стамины: 20)
 	if Input.is_action_just_pressed("attack") and not attack_cooldown:
 		if stamina >= 20:
@@ -132,7 +132,7 @@ func attack_state():
 			stamina -= 15
 			start_attack(ATTACK2, "Attack2")
 
-func attack2_state():  
+func attack2_state():
 	if Input.is_action_just_pressed("attack") and combo:
 		if stamina >= 15:
 			stamina -= 15
@@ -162,31 +162,31 @@ func _on_animation_finished(anim_name):
 
 func take_damage(amount: int, enemy_pos: Vector2):
 	# Если здоровье 0 или игрок сейчас неуязвим — выходим
-	if health <= 0 or is_invincible: 
+	if health <= 0 or is_invincible:
 		return
-	
+
 	# Включаем неуязвимость
 	is_invincible = true
 	health -= amount
-	
+
 	# Отбрасывание
 	var knockback_direction = (global_position - enemy_pos).normalized()
-	velocity = knockback_direction * 400 
-	# Принудительно вызываем движение для отброса, 
+	velocity = knockback_direction * 400
+	# Принудительно вызываем движение для отброса,
 	# так как в MOVE состоянии velocity перетирается вводом
-	move_and_slide() 
-	
+	move_and_slide()
+
 	# Визуальный эффект (мигание)
 	var tween = create_tween()
 	# Делаем персонажа красным и полупрозрачным
 	tween.tween_property(anim, "modulate", Color(1, 0, 0, 0.5), 0.1)
 	tween.tween_property(anim, "modulate", Color.WHITE, 0.1)
-	
+
 	animPlayer.play("Take Hit")
 
 	# Ждем 0.5 секунды (длительность неуязвимости)
 	await get_tree().create_timer(0.5).timeout
-	
+
 	# Выключаем неуязвимость
 	is_invincible = false
 
@@ -199,7 +199,7 @@ func update_gold_ui():
   # Ищем наш новый текст в интерфейсе
 	var label = get_tree().current_scene.find_child("GoldText", true, false)
 	if label:
-    	label.text = gold
+		label.text = str(gold)
 
 func update_stamina_bar():
 	var bar = get_tree().current_scene.find_child("StaminaBar", true, false)
