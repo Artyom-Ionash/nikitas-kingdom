@@ -55,23 +55,26 @@ jobs:
           # Вызываем движок по абсолютному пути
           ~/godot-bin/godot --headless --export-release "${{ env.EXPORT_NAME }}" ${{ env.EXPORT_DIR }}/index.html
 
-      - name: Deploy via Butler
+      - name: Install & Run Butler
         shell: bash
         env:
           BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+          # Явно прописываем переменные здесь для гарантии проброса
+          USER: "artyom-ionash"
+          GAME: "nikitas-kingdom"
         run: |
-          # 1. Распаковка и подготовка (с гарантией путей)
+          # 1. Скачивание (теперь внутри этого же шага, чтобы файл точно был на месте)
+          curl -L -o butler.zip https://github.com/itchio/butler/releases/latest/download/butler-linux-amd64.zip
+
+          # 2. Распаковка
           unzip -q butler.zip -d bin-dist
           mv bin-dist/linux-amd64/butler ./butler
           chmod +x ./butler
 
-          # 2. Жёсткая проверка целевых переменных перед пушем
-          # Если любая из них пуста, скрипт упадет здесь, а не отправит кривой запрос
-          : "${ITCH_USER:?Имя пользователя не задано}"
-          : "${ITCH_GAME:?ID игры не задан}"
+          # 3. Валидация цели (Refining)
+          TARGET="${{ env.USER }}/${{ env.GAME }}:web"
+          echo "Target destination: $TARGET"
 
-          # 3. Пуш с явным указанием пути к папке
-          # Используем локальную переменную для предотвращения разрывов в строке
-          TARGET="${{ env.ITCH_USER }}/${{ env.ITCH_GAME }}:web"
-
+          # 4. Пуш
+          # Используем кавычки для защиты от пустых строк
           ./butler push "${{ env.EXPORT_DIR }}" "$TARGET"
