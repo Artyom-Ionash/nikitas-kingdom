@@ -6,7 +6,7 @@ on:
       - main
 
 env:
-  GODOT_VERSION: "4.6" # Версия должна совпадать с релизом на GitHub
+  GODOT_VERSION: "4.6"
   EXPORT_NAME: "Web"
   EXPORT_DIR: "build/web"
   ITCH_USER: ${{ vars.ITCH_USERNAME }}
@@ -16,7 +16,7 @@ env:
 jobs:
   export-web:
     name: Web Export & Push
-    runs-on: ubuntu-latest # Выполняем напрямую на хосте, без Docker!
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
@@ -30,51 +30,41 @@ jobs:
 
       - name: Install Godot Engine
         run: |
-          # Скачиваем бинарник движка (всего ~60 МБ)
           curl -L "https://github.com/godotengine/godot/releases/download/${{ env.GODOT_VERSION }}-stable/Godot_v${{ env.GODOT_VERSION }}-stable_linux.x86_64.zip" -o godot.zip
-          unzip godot.zip -d ~/godot-bin/
-          # Создаем удобный алиас (симлинк)
+          unzip -q godot.zip -d ~/godot-bin/
           ln -s ~/godot-bin/Godot_v${{ env.GODOT_VERSION }}-stable_linux.x86_64 ~/godot-bin/godot
           chmod +x ~/godot-bin/godot
           rm godot.zip
 
-      - name: Install Export Templates (Surgical)
+      - name: Install Export Templates (Web Only)
         run: |
-          # Скачиваем шаблоны
           curl -L "https://github.com/godotengine/godot/releases/download/${{ env.GODOT_VERSION }}-stable/Godot_v${{ env.GODOT_VERSION }}-stable_export_templates.tpz" -o templates.tpz
-
-          # Извлекаем ТОЛЬКО веб-шаблоны и служебные файлы (экономия времени I/O)
-          unzip templates.tpz "templates/web_*" "templates/version.txt" "templates/icudt_godot.dat"
-
-          # Перемещаем на место
+          unzip -q templates.tpz "templates/web_*" "templates/version.txt" "templates/icudt_godot.dat"
           mv templates/* ~/.local/share/godot/export_templates/${{ env.GODOT_VERSION }}.stable/
           rm -rf templates.tpz templates
 
       - name: Godot Export
         run: |
-          # Вызываем движок по абсолютному пути
           ~/godot-bin/godot --headless --export-release "${{ env.EXPORT_NAME }}" ${{ env.EXPORT_DIR }}/index.html
 
       - name: Install & Run Butler
         shell: bash
         env:
           BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
-          # Явно прописываем переменные здесь для гарантии проброса
-          USER: "artyom-ionash"
-          GAME: "nikitas-kingdom"
         run: |
-          # 1. Скачивание (теперь внутри этого же шага, чтобы файл точно был на месте)
+          # 1. Загрузка и подготовка бинарника
           curl -L -o butler.zip https://github.com/itchio/butler/releases/latest/download/butler-linux-amd64.zip
-
-          # 2. Распаковка
           unzip -q butler.zip -d bin-dist
-          mv bin-dist/linux-amd64/butler ./butler
-          chmod +x ./butler
+          mv bin-dist/linux-amd64/butler ./butler && chmod +x ./butler
 
-          # 3. Валидация цели (Refining)
-          TARGET="${{ env.USER }}/${{ env.GAME }}:web"
-          echo "Target destination: $TARGET"
+          # 2. Формирование цели из глобального env (без дублирования)
+          TARGET="${{ env.ITCH_USER }}/${{ env.ITCH_GAME }}:${{ env.ITCH_CHANNEL }}"
 
-          # 4. Пуш
-          # Используем кавычки для защиты от пустых строк
+          # 3. Валидация: если переменные из vars.* не подтянулись, скрипт прервется
+          if [[ -z "${{ env.ITCH_USER }}" || -z "${{ env.ITCH_GAME }}" ]]; then
+            echo "Error: ITCH_USER or ITCH_GAME is not defined in GitHub Variables."
+            exit 1
+          fi
+
+          echo "Pushing build to: $TARGET"
           ./butler push "${{ env.EXPORT_DIR }}" "$TARGET"
