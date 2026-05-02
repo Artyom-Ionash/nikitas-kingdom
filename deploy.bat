@@ -4,7 +4,7 @@ echo [BUILDING PROJECT...]
 :: Либо они просто сначала жмут Export в Godot, а потом запускают этот скрипт
 
 echo [UPLOADING TO ITCH.IO VIA BUTLER...]
-butler push dist/ artyom-ionash/nikitas-kingdom:html5
+butler push build/web/ artyom-ionash/nikitas-kingdom:html5
 
 echo [DONE]
 pause

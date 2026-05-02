@@ -2,4 +2,4 @@
 .godot/
 /android/
 
-/dist
+build/web/
