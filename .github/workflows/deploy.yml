@@ -24,8 +24,10 @@ jobs:
 
       - name: Setup Export Templates
         run: |
-          # 1. Создаём структуру директорий (Root Binding для шаблонов)
-          # В GitHub Actions домашняя папка — /github/home/
+          # 0. Provisioning: Дооснастка среды (установка curl и unzip)
+          apt-get update && apt-get install -y curl unzip
+
+          # 1. Создаём структуру директорий (Root Binding)
           mkdir -p ~/.local/share/godot/export_templates/${{ env.GODOT_VERSION }}.stable
 
           # 2. Загружаем официальные шаблоны
