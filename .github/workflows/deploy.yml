@@ -51,15 +51,21 @@ jobs:
 
       - name: Install Butler (Reliable Way)
         run: |
-          # Используем GitHub API для поиска прямой ссылки на релиз, если основной домен itch лежит
-          apt-get update && apt-get install -y jq
-          BUTLER_URL=$(curl -s https://broth.itch.ovh/butler/linux-amd64/LATEST/archive/default?raw=true | grep -o 'https://[^"]*' || echo "https://github.com/itchio/butler/releases/latest/download/butler-linux-amd64.zip")
-          # Если основной домен не резолвится, используем зеркало на GitHub
+          # 1. Загрузка (уже работает стабильно)
           curl -L -4 --retry 5 --retry-delay 5 \
             -o butler.zip \
             "https://github.com/itchio/butler/releases/latest/download/butler-linux-amd64.zip"
 
-          unzip butler.zip -d bin && chmod +x bin/butler
+          # 2. Распаковка
+          unzip butler.zip -d bin
+
+          # 3. Перенос бинарника в корень bin (Refining)
+          # GitHub архив содержит вложенность bin/linux-amd64/butler
+          mv bin/linux-amd64/butler bin/butler
+          chmod +x bin/butler
+
+          # 4. Smoke Test
+          ./bin/butler -V
 
       - name: Deploy via Butler
         env:
